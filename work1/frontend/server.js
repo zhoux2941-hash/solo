@@ -13,63 +13,133 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// MQTT 配置
-const MQTT_BROKER = 'mqtt://test.mosquitto.org';
+// MQTT 配置 - 使用免费公共 MQTT Broker
+// test.mosquitto.org 是 Eclipse 提供的免费公共 MQTT Broker
+// TCP 端口: 1883 (非加密), 8883 (加密 TLS)
+// WebSocket 端口: 8080 (非加密), 8081 (加密 TLS)
+const MQTT_BROKER = 'mqtt://test.mosquitto.org:1883';
 const MQTT_TOPIC_COMMAND = 'smartplug/command';
 const MQTT_TOPIC_RESPONSE = 'smartplug/response';
+
+// 其他可用的免费公共 MQTT Broker（可选）:
+// 1. broker.hivemq.com:1883 (HiveMQ)
+// 2. mqtt.eclipseprojects.io:1883 (Eclipse)
+// 3. broker.emqx.io:1883 (EMQX)
 
 let mqttClient = null;
 let connectedClients = new Set();
 
 // 连接到 MQTT Broker
 function connectMqtt() {
-    console.log('正在连接到 MQTT Broker...');
+    console.log('正在连接到 MQTT Broker: ' + MQTT_BROKER);
+    
+    // 生成唯一的客户端ID
+    const clientId = 'smartplug-frontend-' + Date.now() + '-' + Math.random().toString(16).substr(2, 4);
+    
+    console.log('使用客户端ID: ' + clientId);
     
     mqttClient = mqtt.connect(MQTT_BROKER, {
-        clientId: 'smartplug-frontend-' + Math.random().toString(36).substr(2, 8),
+        clientId: clientId,
         clean: true,
-        reconnectPeriod: 1000,
-        connectTimeout: 30 * 1000
+        reconnectPeriod: 3000,  // 3秒后尝试重连
+        connectTimeout: 10 * 1000,  // 10秒超时
+        keepalive: 60,  // 60秒心跳
+        resubscribe: true,  // 重连后自动重新订阅
+        protocolVersion: 4  // MQTT 3.1.1
     });
 
-    mqttClient.on('connect', () => {
-        console.log('成功连接到 MQTT Broker:', MQTT_BROKER);
-        mqttClient.subscribe(MQTT_TOPIC_RESPONSE, (err) => {
+    mqttClient.on('connect', (connack) => {
+        console.log('✓ 成功连接到 MQTT Broker: ' + MQTT_BROKER);
+        console.log('  会话是否为新会话: ' + connack.sessionPresent);
+        
+        // 订阅响应主题
+        mqttClient.subscribe(MQTT_TOPIC_RESPONSE, { qos: 1 }, (err) => {
             if (!err) {
-                console.log('已订阅主题:', MQTT_TOPIC_RESPONSE);
+                console.log('✓ 已订阅主题: ' + MQTT_TOPIC_RESPONSE);
             } else {
-                console.error('订阅主题失败:', err);
+                console.error('✗ 订阅主题失败:', err);
             }
         });
+        
+        // 广播连接状态给所有 WebSocket 客户端
+        broadcastMqttStatus(true);
     });
 
-    mqttClient.on('message', (topic, message) => {
+    mqttClient.on('message', (topic, message, packet) => {
         const msg = message.toString();
-        console.log('收到 MQTT 消息 - 主题:', topic, '内容:', msg);
+        console.log('📩 收到 MQTT 消息');
+        console.log('   主题: ' + topic);
+        console.log('   内容: ' + msg);
+        console.log('   QoS: ' + packet.qos);
         
         // 广播给所有连接的 WebSocket 客户端
-        connectedClients.forEach((ws) => {
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                    type: 'response',
-                    topic: topic,
-                    message: msg,
-                    timestamp: new Date().toISOString()
-                }));
-            }
+        broadcastMessage('response', {
+            topic: topic,
+            message: msg,
+            qos: packet.qos,
+            timestamp: new Date().toISOString()
         });
     });
 
     mqttClient.on('error', (err) => {
-        console.error('MQTT 连接错误:', err);
+        console.error('✗ MQTT 连接错误:');
+        console.error('  错误类型: ' + err.constructor.name);
+        console.error('  错误信息: ' + err.message);
+        
+        // 广播错误状态
+        broadcastMessage('error', {
+            message: 'MQTT 连接错误: ' + err.message
+        });
     });
 
     mqttClient.on('reconnect', () => {
-        console.log('尝试重新连接 MQTT Broker...');
+        console.log('🔄 尝试重新连接 MQTT Broker...');
+        broadcastMessage('status', {
+            message: '正在重新连接 MQTT Broker...'
+        });
     });
 
     mqttClient.on('offline', () => {
-        console.log('MQTT 连接已断开');
+        console.log('⚠️ MQTT 连接已断开（离线状态）');
+        broadcastMqttStatus(false);
+    });
+
+    mqttClient.on('close', () => {
+        console.log('⚠️ MQTT 连接已关闭');
+        broadcastMqttStatus(false);
+    });
+
+    mqttClient.on('disconnect', (packet) => {
+        console.log('⚠️ MQTT 收到断开连接包');
+        if (packet) {
+            console.log('   原因码: ' + packet.reasonCode);
+        }
+    });
+}
+
+// 广播 MQTT 连接状态
+function broadcastMqttStatus(connected) {
+    broadcastMessage('mqtt_status', {
+        connected: connected,
+        broker: MQTT_BROKER
+    });
+}
+
+// 广播消息给所有 WebSocket 客户端
+function broadcastMessage(type, data) {
+    const message = JSON.stringify({
+        type: type,
+        ...data
+    });
+    
+    connectedClients.forEach((ws) => {
+        if (ws.readyState === WebSocket.OPEN) {
+            try {
+                ws.send(message);
+            } catch (err) {
+                console.error('发送 WebSocket 消息失败:', err);
+            }
+        }
     });
 }
 

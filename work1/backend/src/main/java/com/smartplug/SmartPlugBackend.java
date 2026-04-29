@@ -14,11 +14,27 @@ public class SmartPlugBackend implements MqttCallback {
 
     private static final Logger logger = LoggerFactory.getLogger(SmartPlugBackend.class);
     
-    // 公共 MQTT Broker 配置
+    // =========================================================================
+    // MQTT 配置 - 使用免费公共 MQTT Broker
+    // =========================================================================
+    // test.mosquitto.org 是 Eclipse 提供的免费公共 MQTT Broker
+    // 无需安装，直接使用，适合开发和测试
+    // 
+    // 可用端口：
+    // - 1883: MQTT 明文 TCP 端口
+    // - 8883: MQTT TLS 加密端口
+    // - 8080: MQTT over WebSocket 明文端口
+    // - 8081: MQTT over WebSocket TLS 加密端口
+    // =========================================================================
     private static final String BROKER_URL = "tcp://test.mosquitto.org:1883";
-    private static final String CLIENT_ID = "smartplug-backend-" + System.currentTimeMillis();
+    private static final String CLIENT_ID = "smartplug-backend-" + System.currentTimeMillis() + "-" + (int)(Math.random() * 10000);
     private static final String COMMAND_TOPIC = "smartplug/command";
     private static final String RESPONSE_TOPIC = "smartplug/response";
+    
+    // 其他可选的免费公共 MQTT Broker（如需切换，修改 BROKER_URL 即可）：
+    // private static final String BROKER_URL = "tcp://broker.hivemq.com:1883";  // HiveMQ
+    // private static final String BROKER_URL = "tcp://mqtt.eclipseprojects.io:1883";  // Eclipse
+    // private static final String BROKER_URL = "tcp://broker.emqx.io:1883";  // EMQX
     
     private MqttClient client;
     private boolean plugStatus = false; // 初始状态为关闭

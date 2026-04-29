@@ -230,11 +230,64 @@
             word-break: break-word;
         }
 
+        .connection-info {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .connection-info h4 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: #666;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .info-value {
+            color: #333;
+            font-size: 13px;
+            font-family: 'Courier New', monospace;
+            background: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+        }
+
+        .info-value.connected {
+            color: #4CAF50;
+            background: #e8f5e9;
+            border-color: #c8e6c9;
+        }
+
+        .info-value.disconnected {
+            color: #f44336;
+            background: #ffebee;
+            border-color: #ffcdd2;
+        }
+
         .footer {
             text-align: center;
-            margin-top: 30px;
+            margin-top: 20px;
             color: #999;
-            font-size: 12px;
+            font-size: 11px;
         }
 
         .loading {
@@ -294,9 +347,29 @@
             </div>
         </div>
 
+        <div class="connection-info">
+            <h4>🔗 连接信息</h4>
+            <div class="info-row">
+                <span class="info-label">MQTT Broker:</span>
+                <span class="info-value" id="brokerInfo">mqtt://test.mosquitto.org:1883</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">命令主题:</span>
+                <span class="info-value">smartplug/command</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">响应主题:</span>
+                <span class="info-value">smartplug/response</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">MQTT 状态:</span>
+                <span class="info-value" id="mqttStatusText">未知</span>
+            </div>
+        </div>
+
         <div class="footer">
-            <p>MQTT Broker: test.mosquitto.org</p>
-            <p>命令主题: smartplug/command | 响应主题: smartplug/response</p>
+            <p>使用免费公共 MQTT Broker: test.mosquitto.org</p>
+            <p>端口: 1883 (TCP) | 无需安装，直接使用</p>
         </div>
     </div>
 
@@ -365,6 +438,15 @@
                     addMessage('系统', data.message, 'received');
                     break;
 
+                case 'mqtt_status':
+                    updateMqttStatus(data.connected, data.broker);
+                    if (data.connected) {
+                        addMessage('MQTT', `已连接到 Broker: ${data.broker}`, 'received');
+                    } else {
+                        addMessage('MQTT', `与 Broker 连接已断开`, 'error');
+                    }
+                    break;
+
                 case 'sent':
                     addMessage('发送', `命令已发送: ${data.command}`, 'sent');
                     break;
@@ -377,6 +459,23 @@
                 case 'error':
                     addMessage('错误', data.message, 'error');
                     break;
+            }
+        }
+
+        function updateMqttStatus(connected, broker) {
+            const mqttStatusText = document.getElementById('mqttStatusText');
+            const brokerInfo = document.getElementById('brokerInfo');
+            
+            if (broker) {
+                brokerInfo.textContent = broker;
+            }
+            
+            if (connected) {
+                mqttStatusText.textContent = '已连接';
+                mqttStatusText.className = 'info-value connected';
+            } else {
+                mqttStatusText.textContent = '未连接';
+                mqttStatusText.className = 'info-value disconnected';
             }
         }
 
