@@ -361,6 +361,36 @@
             opacity: 0.5;
         }
 
+        .debug-info {
+            margin-top: 15px;
+            padding: 10px;
+            background: #f0f4ff;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #4f46e5;
+            text-align: left;
+        }
+
+        .debug-info .debug-title {
+            font-weight: 600;
+            margin-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .debug-info .debug-content {
+            font-family: monospace;
+            font-size: 11px;
+            max-height: 100px;
+            overflow-y: auto;
+            background: white;
+            padding: 8px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
         @keyframes pulse {
             0%, 100% {
                 opacity: 1;
@@ -436,6 +466,14 @@
                 </div>
             </div>
         </div>
+
+        <div class="debug-info">
+            <div class="debug-title">
+                <span>🔧 调试信息</span>
+                <span id="reportCountDebug">收到: 0 条</span>
+            </div>
+            <div class="debug-content" id="debugContent">等待连接...</div>
+        </div>
     </div>
 
     <script>
@@ -444,6 +482,8 @@
         let currentStatus = '未知';
         const MAX_REPORTS = 10;
         let reportHistory = [];
+        let totalReportsReceived = 0;
+        let debugLogs = [];
 
         const socketDisplay = document.getElementById('socketDisplay');
         const statusText = document.getElementById('statusText');
@@ -455,15 +495,33 @@
         const btnOff = document.getElementById('btnOff');
         const reportList = document.getElementById('reportList');
         const reportCount = document.getElementById('reportCount');
+        const reportCountDebug = document.getElementById('reportCountDebug');
+        const debugContent = document.getElementById('debugContent');
+
+        function addDebugLog(message) {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('zh-CN', { hour12: false });
+            const log = `[${timeStr}] ${message}`;
+            
+            debugLogs.unshift(log);
+            if (debugLogs.length > 20) {
+                debugLogs.pop();
+            }
+            
+            debugContent.textContent = debugLogs.join('\n');
+            console.log(log);
+        }
 
         function connectWebSocket() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = protocol + '//' + window.location.host;
             
+            addDebugLog('正在连接 WebSocket: ' + wsUrl);
+            
             ws = new WebSocket(wsUrl);
 
             ws.onopen = () => {
-                console.log('WebSocket 已连接');
+                addDebugLog('✅ WebSocket 连接成功!');
                 isConnected = true;
                 updateConnectionStatus(true);
                 hideError();
@@ -472,14 +530,16 @@
             ws.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
+                    addDebugLog('📨 收到消息: ' + data.type);
                     handleMessage(data);
                 } catch (err) {
+                    addDebugLog('❌ 解析消息失败: ' + err.message);
                     console.error('解析消息失败:', err);
                 }
             };
 
             ws.onclose = () => {
-                console.log('WebSocket 已断开');
+                addDebugLog('⚠️ WebSocket 连接断开，3秒后重连...');
                 isConnected = false;
                 updateConnectionStatus(false);
                 showError('连接已断开，正在重连...');
@@ -487,40 +547,57 @@
             };
 
             ws.onerror = (err) => {
-                console.error('WebSocket 错误:', err);
+                addDebugLog('❌ WebSocket 错误');
                 showError('连接错误');
             };
         }
 
         function handleMessage(data) {
-            console.log('收到消息:', data);
+            addDebugLog('   数据: ' + JSON.stringify(data).substring(0, 100) + '...');
 
             if (data.type === 'init' || data.type === 'status') {
                 if (data.status) {
+                    addDebugLog('   更新状态: ' + data.status);
                     updateStatus(data.status);
                 }
                 if (data.response) {
+                    addDebugLog('   更新响应: ' + data.response);
                     updateResponse(data.response);
                 }
             } else if (data.type === 'report') {
+                totalReportsReceived++;
+                reportCountDebug.textContent = '收到: ' + totalReportsReceived + ' 条';
+                addDebugLog('📊 设备上报 #' + totalReportsReceived);
+                addDebugLog('   设备: ' + data.data.deviceId);
+                addDebugLog('   在线: ' + data.data.isOnline);
+                addDebugLog('   状态: ' + data.data.statusText);
+                addDebugLog('   时间: ' + data.data.timestamp);
                 addReport(data.data);
             } else if (data.type === 'error') {
+                addDebugLog('❌ 错误: ' + data.message);
                 showError(data.message);
             }
         }
 
         function addReport(reportData) {
+            addDebugLog('📋 添加上报记录到列表...');
+            
             reportHistory.unshift(reportData);
             
             if (reportHistory.length > MAX_REPORTS) {
-                reportHistory.pop();
+                const removed = reportHistory.pop();
+                addDebugLog('   超出10条，移除旧记录: ' + removed.timestamp);
             }
 
+            addDebugLog('   当前列表条数: ' + reportHistory.length);
             renderReportList();
         }
 
         function renderReportList() {
+            addDebugLog('🎨 渲染上报列表...');
+            
             if (reportHistory.length === 0) {
+                addDebugLog('   列表为空');
                 reportList.innerHTML = `
                     <div class="report-empty">
                         <div class="report-empty-icon">📡</div>
@@ -533,6 +610,7 @@
             }
 
             reportCount.textContent = `${reportHistory.length}/10 条`;
+            addDebugLog('   渲染 ' + reportHistory.length + ' 条记录');
 
             let html = '';
             reportHistory.forEach((report, index) => {
@@ -544,7 +622,7 @@
 
                 html += `
                     <div class="report-item${isNew ? ' new' : ''}">
-                        <div class="report-time">${report.timestamp}</div>
+                        <div class="report-time">#${totalReportsReceived - index} ${report.timestamp}</div>
                         <div class="report-content">
                             <span class="report-tag tag-device">
                                 <span>📱</span> ${report.deviceId || 'smart-socket-001'}
@@ -561,6 +639,7 @@
             });
 
             reportList.innerHTML = html;
+            addDebugLog('✅ 渲染完成');
         }
 
         function updateStatus(status) {
@@ -620,6 +699,7 @@
 
         function sendCommand(command) {
             if (!isConnected || !ws || ws.readyState !== WebSocket.OPEN) {
+                addDebugLog('❌ 未连接，无法发送指令');
                 showError('未连接到服务器，请稍后重试');
                 return;
             }
@@ -629,8 +709,8 @@
                 command: command
             };
 
+            addDebugLog('📤 发送指令: ' + command);
             ws.send(JSON.stringify(message));
-            console.log('已发送指令:', command);
             
             responseContent.textContent = '发送中...';
             responseContent.classList.add('loading');
@@ -640,6 +720,7 @@
             }, 1000);
         }
 
+        addDebugLog('🚀 页面加载完成，开始连接...');
         connectWebSocket();
     </script>
 </body>
