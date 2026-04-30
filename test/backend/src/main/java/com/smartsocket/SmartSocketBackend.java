@@ -3,11 +3,12 @@ package com.smartsocket;
 import org.eclipse.paho.client.mqttv3.*;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 
 public class SmartSocketBackend {
 
-    private static final String BROKER_URL = "tcp://localhost:1883";
-    private static final String CLIENT_ID = "smart-socket-backend";
+    private static final String BROKER_URL = "tcp://broker.emqx.io:1883";
+    private static final String CLIENT_ID_PREFIX = "smart-socket-backend-";
     private static final String COMMAND_TOPIC = "smart-socket/command";
     private static final String STATUS_TOPIC = "smart-socket/status";
 
@@ -23,8 +24,9 @@ public class SmartSocketBackend {
 
     public void connect() {
         try {
+            String clientId = CLIENT_ID_PREFIX + UUID.randomUUID().toString().substring(0, 8);
             MemoryPersistence persistence = new MemoryPersistence();
-            mqttClient = new MqttClient(BROKER_URL, CLIENT_ID, persistence);
+            mqttClient = new MqttClient(BROKER_URL, clientId, persistence);
 
             MqttConnectOptions connOpts = new MqttConnectOptions();
             connOpts.setCleanSession(true);
@@ -52,7 +54,8 @@ public class SmartSocketBackend {
 
         } catch (MqttException e) {
             System.err.println("连接 MQTT Broker 失败: " + e.getMessage());
-            System.err.println("请确保 MQTT Broker (如 Mosquitto) 已启动并运行在 " + BROKER_URL);
+            System.err.println("使用的是 EMQX 公共 Broker: " + BROKER_URL);
+            System.err.println("请检查网络连接是否正常。");
             e.printStackTrace();
             System.exit(1);
         }

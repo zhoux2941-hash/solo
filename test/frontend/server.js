@@ -8,7 +8,7 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-const MQTT_BROKER = 'mqtt://localhost:1883';
+const MQTT_BROKER = 'mqtt://broker.emqx.io:1883';
 const COMMAND_TOPIC = 'smart-socket/command';
 const STATUS_TOPIC = 'smart-socket/status';
 const PORT = 3000;
