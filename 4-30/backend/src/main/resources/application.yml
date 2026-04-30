@@ -1,0 +1,10 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: collaborative-editor
+
+jwt:
+  secret: smart-socket-collaborative-editor-jwt-secret-key-2024
+  expiration: 86400000

@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collaborative Editor</title>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #1e1e1e;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            background: #252526;
+            border-bottom: 1px solid #3c3c3c;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            min-height: 48px;
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .logo {
+            font-size: 14px;
+            font-weight: 600;
+            color: #cccccc;
+        }
+        
+        .doc-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .doc-name {
+            color: #ffffff;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        .doc-owner {
+            font-size: 12px;
+            color: #858585;
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #858585;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #f48771;
+        }
+        
+        .status-dot.connected {
+            background: #89d185;
+        }
+        
+        .online-users {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .user-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: #3c3c3c;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #cccccc;
+        }
+        
+        .user-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        
+        .btn-back {
+            padding: 6px 12px;
+            background: #3c3c3c;
+            border: none;
+            border-radius: 4px;
+            color: #cccccc;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s;
+        }
+        
+        .btn-back:hover {
+            background: #4a4a4a;
+        }
+        
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        .sidebar {
+            width: 280px;
+            background: #252526;
+            border-right: 1px solid #3c3c3c;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .sidebar-section {
+            padding: 16px;
+            border-bottom: 1px solid #3c3c3c;
+        }
+        
+        .sidebar-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #858585;
+            margin-bottom: 12px;
+            letter-spacing: 0.5px;
+        }
+        
+        .collaborator-list {
+            list-style: none;
+        }
+        
+        .collaborator-item {
+            display: flex;
+            align-items: center;
+            padding: 8px;
+            border-radius: 4px;
+            margin-bottom: 4px;
+        }
+        
+        .collaborator-item.current {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .collaborator-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+            margin-right: 10px;
+        }
+        
+        .collaborator-name {
+            color: #cccccc;
+            font-size: 13px;
+        }
+        
+        .collaborator-name small {
+            color: #858585;
+            font-size: 11px;
+        }
+        
+        .editor-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .editor-toolbar {
+            background: #2d2d2d;
+            border-bottom: 1px solid #3c3c3c;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .toolbar-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .lang-badge {
+            font-size: 11px;
+            padding: 2px 8px;
+            background: #3c3c3c;
+            color: #858585;
+            border-radius: 3px;
+        }
+        
+        .error-indicator {
+            display: none;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: #f14c4c20;
+            border: 1px solid #f14c4c50;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #f14c4c;
+        }
+        
+        .error-indicator.show {
+            display: flex;
+        }
+        
+        .error-count {
+            font-weight: 600;
+        }
+        
+        .cm-editor {
+            height: 100%;
+            font-size: 14px;
+            font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+        }
+        
+        .cm-editor.cm-focused {
+            outline: none;
+        }
+        
+        .cm-scroller {
+            overflow: auto;
+        }
+        
+        .cm-content {
+            padding: 20px 0;
+        }
+        
+        .cm-line {
+            padding: 0 20px;
+        }
+        
+        .cm-lineNumbers .cm-gutterElement {
+            padding: 0 10px 0 20px;
+            min-width: 50px;
+        }
+        
+        .cm-activeLine {
+            background: rgba(255, 255, 255, 0.06);
+        }
+        
+        .cm-activeLineGutter {
+            background: #1e1e1e;
+        }
+        
+        .error-marker {
+            background: #f14c4c20;
+            border-bottom: 2px wavy #f14c4c;
+        }
+        
+        .remote-cursor {
+            position: absolute;
+            width: 2px;
+            height: 18px;
+            pointer-events: none;
+            z-index: 100;
+        }
+        
+        .remote-cursor::after {
+            content: attr(data-username);
+            position: absolute;
+            top: -20px;
+            left: 0;
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: white;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+        
+        .remote-selection {
+            position: absolute;
+            opacity: 0.3;
+            pointer-events: none;
+        }
+        
+        .toast {
+            position: fixed;
+            top: 64px;
+            right: 24px;
+            padding: 12px 20px;
+            background: #252526;
+            border: 1px solid #3c3c3c;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #cccccc;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: all 0.3s;
+            z-index: 2000;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        }
+        
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .toast.warning {
+            background: #f59e0b20;
+            border-color: #f59e0b50;
+            color: #fbbf24;
+        }
+        
+        .toast.error {
+            background: #f14c4c20;
+            border-color: #f14c4c50;
+            color: #f14c4c;
+        }
+        
+        .toast.success {
+            background: #4ade8020;
+            border-color: #4ade8050;
+            color: #4ade80;
+        }
+        
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #1e1e1e;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+        }
+        
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #3c3c3c;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            margin-top: 16px;
+            color: #858585;
+            font-size: 14px;
+        }
+        
+        .remote-cursors-layer {
+            position: relative;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <p class="loading-text" id="loadingText">连接中...</p>
+    </div>
+    
+    <header class="header">
+        <div class="header-left">
+            <button class="btn-back" id="backBtn">
+                <span>←</span>
+                <span>返回</span>
+            </button>
+            <div class="doc-info">
+                <span class="doc-name" id="docName">Document</span>
+                <span class="doc-owner" id="docOwner"></span>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="connection-status">
+                <span class="status-dot" id="statusDot"></span>
+                <span id="statusText">未连接</span>
+            </div>
+            <div class="online-users" id="onlineUsers">
+            </div>
+        </div>
+    </header>
+    
+    <main class="main-container">
+        <aside class="sidebar">
+            <div class="sidebar-section">
+                <h3 class="sidebar-title">协作者</h3>
+                <ul class="collaborator-list" id="collaboratorList">
+                </ul>
+            </div>
+        </aside>
+        
+        <div class="editor-container">
+            <div class="editor-toolbar">
+                <div class="toolbar-left">
+                    <span class="lang-badge">JavaScript</span>
+                    <div class="error-indicator" id="errorIndicator">
+                        <span>⚠</span>
+                        <span class="error-count" id="errorCount">0</span>
+                        <span>个语法错误</span>
+                    </div>
+                </div>
+            </div>
+            <div id="editor"></div>
+        </div>
+    </main>
+    
+    <div class="toast" id="toast"></div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/acorn/8.11.3/acorn.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/acorn/8.11.3/acorn-loose.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/acorn-walk/8.3.2/acorn-walk.min.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@6/lib/codemirror.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@codemirror/lang-javascript@6/dist/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@codemirror/state@6/dist/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@codemirror/view@6/dist/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@codemirror/commands@6/dist/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@codemirror/search@6/dist/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@codemirror/autocomplete@6/dist/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@codemirror/language@6/dist/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@codemirror/lint@6/dist/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@codemirror/theme-one-dark@6/dist/index.js"></script>
+    
+    <script src="js/editor.js"></script>
+</body>
+</html>
