@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Collaborative Editor</title>
     
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/lint/lint.min.css">
+    
     <style>
         * {
             margin: 0;
@@ -191,7 +195,6 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            position: relative;
         }
         
         .editor-toolbar {
@@ -237,71 +240,68 @@
             font-weight: 600;
         }
         
-        .cm-editor {
+        .CodeMirror {
             height: 100%;
             font-size: 14px;
             font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
         }
         
-        .cm-editor.cm-focused {
-            outline: none;
-        }
-        
-        .cm-scroller {
-            overflow: auto;
-        }
-        
-        .cm-content {
-            padding: 20px 0;
-        }
-        
-        .cm-line {
-            padding: 0 20px;
-        }
-        
-        .cm-lineNumbers .cm-gutterElement {
-            padding: 0 10px 0 20px;
-            min-width: 50px;
-        }
-        
-        .cm-activeLine {
-            background: rgba(255, 255, 255, 0.06);
-        }
-        
-        .cm-activeLineGutter {
+        .CodeMirror-gutters {
             background: #1e1e1e;
-        }
-        
-        .error-marker {
-            background: #f14c4c20;
-            border-bottom: 2px wavy #f14c4c;
+            border-right: 1px solid #3c3c3c;
         }
         
         .remote-cursor {
             position: absolute;
             width: 2px;
             height: 18px;
-            pointer-events: none;
             z-index: 100;
+            pointer-events: none;
         }
         
-        .remote-cursor::after {
-            content: attr(data-username);
+        .remote-cursor-label {
             position: absolute;
-            top: -20px;
+            top: -18px;
             left: 0;
             font-size: 11px;
-            padding: 2px 6px;
-            border-radius: 3px;
+            padding: 1px 6px;
+            border-radius: 3px 3px 0 0;
             color: white;
             white-space: nowrap;
             pointer-events: none;
         }
         
-        .remote-selection {
-            position: absolute;
-            opacity: 0.3;
-            pointer-events: none;
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #1e1e1e;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+        }
+        
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #3c3c3c;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            margin-top: 16px;
+            color: #858585;
+            font-size: 14px;
         }
         
         .toast {
@@ -344,42 +344,29 @@
             color: #4ade80;
         }
         
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: #1e1e1e;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 3000;
-        }
-        
-        .loading-spinner {
-            width: 40px;
-            height: 40px;
-            border: 3px solid #3c3c3c;
-            border-top-color: #667eea;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        .loading-text {
-            margin-top: 16px;
-            color: #858585;
-            font-size: 14px;
-        }
-        
-        .remote-cursors-layer {
+        .editor-wrapper {
+            flex: 1;
             position: relative;
-            pointer-events: none;
+            overflow: hidden;
+        }
+        
+        #editor {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .CodeMirror-lint-marker-error {
+            background: #f14c4c;
+        }
+        
+        .CodeMirror-lint-tooltip {
+            background: #252526;
+            border: 1px solid #3c3c3c;
+            color: #cccccc;
+            border-radius: 4px;
+            padding: 8px 12px;
+            font-family: inherit;
+            font-size: 12px;
         }
     </style>
 </head>
@@ -430,26 +417,20 @@
                     </div>
                 </div>
             </div>
-            <div id="editor"></div>
+            <div class="editor-wrapper">
+                <textarea id="editor"></textarea>
+            </div>
         </div>
     </main>
     
     <div class="toast" id="toast"></div>
     
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/lint/lint.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/acorn/8.11.3/acorn.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/acorn/8.11.3/acorn-loose.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/acorn-walk/8.3.2/acorn-walk.min.js"></script>
-    
-    <script src="https://cdn.jsdelivr.net/npm/codemirror@6/lib/codemirror.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@codemirror/lang-javascript@6/dist/index.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@codemirror/state@6/dist/index.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@codemirror/view@6/dist/index.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@codemirror/commands@6/dist/index.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@codemirror/search@6/dist/index.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@codemirror/autocomplete@6/dist/index.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@codemirror/language@6/dist/index.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@codemirror/lint@6/dist/index.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@codemirror/theme-one-dark@6/dist/index.js"></script>
     
     <script src="js/editor.js"></script>
 </body>

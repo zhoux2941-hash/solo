@@ -4,22 +4,11 @@ const WS_BASE = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 let currentUser = null;
 let documentId = null;
 let editor = null;
-let view = null;
 let socket = null;
 let documentVersion = 0;
 let isApplyingRemoteChange = false;
 let remoteCursors = {};
-let remoteSelections = {};
-let errorMarkers = [];
-
-const { EditorState, Compartment } = CMState;
-const { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, dropCursor, rectangularSelection, crosshairCursor, Decoration, ViewPlugin } = CMView;
-const { defaultKeymap, history, historyKeymap, indentWithTab } = CMCommands;
-const { javascript, javascriptLanguage, snippets } = CMLangJavascript;
-const { defaultHighlightStyle, syntaxHighlighting, bracketMatching, indentOnInput } = CMLanguage;
-const { oneDark } = CMThemeOneDark;
-const { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } = CMAutocomplete;
-const { lintKeymap, linter, setDiagnostics } = CMLint;
+let cursorElements = {};
 
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
@@ -119,7 +108,7 @@ function connectWebSocket(initialContent) {
         updateConnectionStatus(false);
         setTimeout(() => {
             if (!socket || socket.readyState !== WebSocket.OPEN) {
-                connectWebSocket(view ? view.state.doc.toString() : initialContent);
+                connectWebSocket(editor ? editor.getValue() : initialContent);
             }
         }, 3000);
     };
@@ -155,7 +144,6 @@ function handleWebSocketMessage(message, initialContent) {
             
         case 'leave':
             removeRemoteCursor(message.username);
-            removeRemoteSelection(message.username);
             updateCollaboratorList();
             break;
             
@@ -171,9 +159,6 @@ function handleWebSocketMessage(message, initialContent) {
             break;
             
         case 'selection':
-            if (message.username !== currentUser.username) {
-                updateRemoteSelection(message);
-            }
             break;
             
         case 'edit':
@@ -197,77 +182,42 @@ function handleWebSocketMessage(message, initialContent) {
 }
 
 function initEditor(initialContent) {
-    const lintExtension = javascriptLanguage.data.of({
-        lint: (text) => {
-            return lintJavaScript(text);
-        }
+    const textarea = document.getElementById('editor');
+    
+    editor = CodeMirror.fromTextArea(textarea, {
+        mode: 'javascript',
+        theme: 'dracula',
+        lineNumbers: true,
+        matchBrackets: true,
+        autoCloseBrackets: true,
+        indentUnit: 4,
+        tabSize: 4,
+        indentWithTabs: false,
+        lineWrapping: true
     });
     
-    const cursorPlugin = ViewPlugin.fromClass(class {
-        constructor(view) {
-            this.view = view;
-        }
-        
-        update(update) {
-            if (update.selectionSet) {
-                sendCursorPosition();
-            }
-            if (update.docChanged) {
-                sendCursorPosition();
-                checkErrors();
-            }
-        }
-        
-        destroy() {}
-    });
+    editor.setValue(initialContent);
     
-    const state = EditorState.create({
-        doc: initialContent,
-        extensions: [
-            lineNumbers(),
-            highlightActiveLine(),
-            highlightActiveLineGutter(),
-            drawSelection(),
-            dropCursor(),
-            EditorState.allowMultipleSelections.of(true),
-            indentOnInput(),
-            syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-            bracketMatching(),
-            closeBrackets(),
-            autocompletion(),
-            rectangularSelection(),
-            crosshairCursor(),
-            history(),
-            oneDark,
-            javascript(),
-            lintExtension,
-            keymap.of([
-                ...defaultKeymap,
-                ...closeBracketsKeymap,
-                ...historyKeymap,
-                ...completionKeymap,
-                ...lintKeymap,
-                indentWithTab
-            ]),
-            EditorView.updateListener.of((update) => {
-                if (update.docChanged && !isApplyingRemoteChange) {
-                    update.transactions.forEach(tr => {
-                        if (tr.docChanged) {
-                            tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
-                                const text = inserted.toString();
-                                sendEditChange(fromA, toA, text);
-                            });
-                        }
-                    });
+    editor.on('change', (cm, change) => {
+        if (!isApplyingRemoteChange) {
+            if (change.origin !== 'setValue') {
+                const from = cm.indexFromPos(change.from);
+                let to = from;
+                
+                if (change.removed.length > 0) {
+                    const removedText = change.removed.join('\n');
+                    to = from + removedText.length;
                 }
-            }),
-            cursorPlugin
-        ]
+                
+                const insertedText = change.text.join('\n');
+                sendEditChange(from, to, insertedText);
+            }
+        }
+        checkErrors();
     });
     
-    view = new EditorView({
-        state,
-        parent: document.getElementById('editor')
+    editor.on('cursorActivity', () => {
+        sendCursorPosition();
     });
     
     checkErrors();
@@ -278,33 +228,28 @@ function lintJavaScript(text) {
     
     try {
         acorn.parse(text, { ecmaVersion: 2024 });
-        errorMarkers = [];
         return [];
     } catch (e) {
         if (e.loc) {
             const line = e.loc.line - 1;
             const column = e.loc.column;
-            const lines = text.split('\n');
-            const from = lines.slice(0, line).reduce((sum, l) => sum + l.length + 1, 0) + column;
-            const to = from + 1;
             
             diagnostics.push({
-                from,
-                to,
+                from: CodeMirror.Pos(line, column),
+                to: CodeMirror.Pos(line, column + 1),
                 severity: 'error',
                 message: e.message
             });
         }
     }
     
-    errorMarkers = diagnostics;
     return diagnostics;
 }
 
 function checkErrors() {
-    if (!view) return;
+    if (!editor) return;
     
-    const text = view.state.doc.toString();
+    const text = editor.getValue();
     const errors = lintJavaScript(text);
     
     const errorIndicator = document.getElementById('errorIndicator');
@@ -317,8 +262,14 @@ function checkErrors() {
         errorIndicator.classList.remove('show');
     }
     
-    view.dispatch({
-        effects: setDiagnostics.of(errors)
+    const markers = editor.getAllMarks();
+    markers.forEach(m => m.clear());
+    
+    errors.forEach(error => {
+        editor.markText(error.from, error.to, {
+            className: 'CodeMirror-lint-mark-error',
+            title: error.message
+        });
     });
 }
 
@@ -339,39 +290,49 @@ function sendEditChange(from, to, text) {
 }
 
 function sendCursorPosition() {
-    if (!socket || socket.readyState !== WebSocket.OPEN || !view) return;
+    if (!socket || socket.readyState !== WebSocket.OPEN || !editor) return;
     
-    const selection = view.state.selection.main;
+    const cursor = editor.getCursor();
+    const position = editor.indexFromPos(cursor);
     
     socket.send(JSON.stringify({
         type: 'cursor',
         documentId: documentId,
         username: currentUser.username,
-        position: selection.from
+        position: position
     }));
-    
-    if (selection.from !== selection.to) {
-        socket.send(JSON.stringify({
-            type: 'selection',
-            documentId: documentId,
-            username: currentUser.username,
-            from: selection.from,
-            to: selection.to
-        }));
-    }
 }
 
 function applyRemoteEdit(message) {
-    if (!view) return;
+    if (!editor) return;
     
     isApplyingRemoteChange = true;
     
     try {
         const { from, to, text } = message;
         
-        view.dispatch({
-            changes: { from, to, insert: text }
-        });
+        const fromPos = editor.posFromIndex(from);
+        let toPos;
+        
+        if (from === to && text) {
+            toPos = fromPos;
+        } else {
+            toPos = editor.posFromIndex(to);
+        }
+        
+        const doc = editor.getDoc();
+        
+        const currentCursor = editor.getCursor();
+        const currentCursorIndex = editor.indexFromPos(currentCursor);
+        
+        doc.replaceRange(text, fromPos, toPos, 'setValue');
+        
+        if (currentCursorIndex > from) {
+            const diff = text.length - (to - from);
+            const newCursorIndex = currentCursorIndex + diff;
+            const newCursorPos = editor.posFromIndex(Math.max(0, newCursorIndex));
+            editor.setCursor(newCursorPos);
+        }
         
         documentVersion = message.version;
         
@@ -384,88 +345,71 @@ function applyRemoteEdit(message) {
 }
 
 function updateRemoteCursor(message) {
-    if (!view) return;
+    if (!editor) return;
     
     const { username, nickname, color, position } = message;
     
-    if (!remoteCursors[username]) {
-        const cursor = document.createElement('div');
-        cursor.className = 'remote-cursor';
-        cursor.style.backgroundColor = color;
-        cursor.dataset.username = nickname;
-        cursor.querySelector('::after')?.style.setProperty('background', color);
-        remoteCursors[username] = cursor;
-    }
-    
-    const cursor = remoteCursors[username];
-    cursor.style.backgroundColor = color;
-    cursor.innerHTML = `<span style="position:absolute;top:-20px;left:0;font-size:11px;padding:2px 6px;border-radius:3px;color:white;white-space:nowrap;background:${color};">${nickname}</span>`;
-    
-    const coords = view.coordsAtPos(position);
-    if (coords) {
-        const editorRect = view.dom.getBoundingClientRect();
-        cursor.style.left = (coords.left - editorRect.left) + 'px';
-        cursor.style.top = (coords.top - editorRect.top) + 'px';
+    if (!cursorElements[username]) {
+        const wrapper = editor.getWrapperElement();
         
-        view.dom.appendChild(cursor);
+        const cursorContainer = document.createElement('div');
+        cursorContainer.className = 'remote-cursor';
+        cursorContainer.style.position = 'absolute';
+        cursorContainer.style.zIndex = '100';
+        cursorContainer.style.pointerEvents = 'none';
+        
+        const cursor = document.createElement('div');
+        cursor.style.width = '2px';
+        cursor.style.height = '18px';
+        cursor.style.backgroundColor = color;
+        cursor.style.position = 'relative';
+        
+        const label = document.createElement('div');
+        label.className = 'remote-cursor-label';
+        label.style.backgroundColor = color;
+        label.textContent = nickname;
+        label.style.position = 'absolute';
+        label.style.top = '-16px';
+        label.style.left = '0';
+        label.style.fontSize = '11px';
+        label.style.padding = '1px 6px';
+        label.style.borderRadius = '3px 3px 0 0';
+        label.style.color = 'white';
+        label.style.whiteSpace = 'nowrap';
+        
+        cursor.appendChild(label);
+        cursorContainer.appendChild(cursor);
+        
+        wrapper.style.position = 'relative';
+        wrapper.appendChild(cursorContainer);
+        
+        cursorElements[username] = { container: cursorContainer, cursor: cursor, label: label };
     }
+    
+    const elem = cursorElements[username];
+    elem.cursor.style.backgroundColor = color;
+    elem.label.style.backgroundColor = color;
+    elem.label.textContent = nickname;
+    
+    const pos = editor.posFromIndex(position);
+    const coords = editor.charCoords(pos, 'local');
+    
+    elem.container.style.left = coords.left + 'px';
+    elem.container.style.top = (coords.top - editor.getScrollInfo().top) + 'px';
 }
 
 function removeRemoteCursor(username) {
-    if (remoteCursors[username]) {
-        remoteCursors[username].remove();
-        delete remoteCursors[username];
-    }
-}
-
-function updateRemoteSelection(message) {
-    if (!view) return;
-    
-    const { username, nickname, color, from, to } = message;
-    
-    if (!remoteSelections[username]) {
-        const selection = document.createElement('div');
-        selection.className = 'remote-selection';
-        selection.style.backgroundColor = color;
-        remoteSelections[username] = selection;
-    }
-    
-    const selection = remoteSelections[username];
-    selection.style.backgroundColor = color;
-    selection.style.opacity = '0.3';
-    
-    const startCoords = view.coordsAtPos(Math.min(from, to));
-    const endCoords = view.coordsAtPos(Math.max(from, to));
-    
-    if (startCoords && endCoords) {
-        const editorRect = view.dom.getBoundingClientRect();
-        selection.style.left = (startCoords.left - editorRect.left) + 'px';
-        selection.style.top = (startCoords.top - editorRect.top) + 'px';
-        selection.style.width = (endCoords.right - startCoords.left) + 'px';
-        selection.style.height = (endCoords.bottom - startCoords.top) + 'px';
-        
-        view.dom.appendChild(selection);
-    }
-}
-
-function removeRemoteSelection(username) {
-    if (remoteSelections[username]) {
-        remoteSelections[username].remove();
-        delete remoteSelections[username];
+    if (cursorElements[username]) {
+        cursorElements[username].container.remove();
+        delete cursorElements[username];
     }
 }
 
 function handleSyncError(message) {
-    if (!view) return;
+    if (!editor) return;
     
     isApplyingRemoteChange = true;
-    view.dispatch({
-        changes: {
-            from: 0,
-            to: view.state.doc.length,
-            insert: message.currentContent
-        }
-    });
+    editor.setValue(message.currentContent);
     documentVersion = message.correctVersion;
     isApplyingRemoteChange = false;
     
@@ -517,7 +461,6 @@ function updateCollaboratorListUI(users) {
 }
 
 function updateCollaboratorList() {
-    if (!socket || socket.readyState !== WebSocket.OPEN) return;
 }
 
 function hideLoading() {
