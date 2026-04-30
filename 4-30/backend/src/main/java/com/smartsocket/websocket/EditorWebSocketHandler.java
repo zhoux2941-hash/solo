@@ -2,7 +2,9 @@ package com.smartsocket.websocket;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.smartsocket.model.*;
+import com.smartsocket.model.Document;
+import com.smartsocket.model.User;
+import com.smartsocket.model.WebSocketMessage;
 import com.smartsocket.service.DocumentService;
 import com.smartsocket.service.UserService;
 import org.slf4j.Logger;
@@ -56,7 +58,7 @@ public class EditorWebSocketHandler extends TextWebSocketHandler {
                 docSessions.remove(sessionId);
             }
             
-            LeaveMessage leaveMsg = new LeaveMessage(documentId, username);
+            Map<String, Object> leaveMsg = WebSocketMessage.leave(documentId, username);
             broadcastToDocument(documentId, leaveMsg, sessionId);
             sendUserListUpdate(documentId);
         }
@@ -100,7 +102,7 @@ public class EditorWebSocketHandler extends TextWebSocketHandler {
         
         if (!documentService.hasAccess(documentId, username)) {
             session.sendMessage(new TextMessage(objectMapper.writeValueAsString(
-                Map.of("type", "error", "message", "Access denied to document")
+                WebSocketMessage.error("Access denied to document")
             )));
             return;
         }
@@ -113,7 +115,7 @@ public class EditorWebSocketHandler extends TextWebSocketHandler {
         User user = userService.getUserByUsername(username);
         Document doc = documentService.getDocument(documentId);
         
-        JoinMessage joinMsg = new JoinMessage(
+        Map<String, Object> joinMsg = WebSocketMessage.join(
             documentId, username,
             user.getColor(), user.getNickname(),
             doc.getContent(), documentService.getVersion(documentId, username)
@@ -138,13 +140,9 @@ public class EditorWebSocketHandler extends TextWebSocketHandler {
         documentService.updateCursor(documentId, username, position);
         
         User user = userService.getUserByUsername(username);
-        Map<String, Object> cursorMsg = new HashMap<>();
-        cursorMsg.put("type", "cursor");
-        cursorMsg.put("documentId", documentId);
-        cursorMsg.put("username", username);
-        cursorMsg.put("nickname", user.getNickname());
-        cursorMsg.put("color", user.getColor());
-        cursorMsg.put("position", position);
+        Map<String, Object> cursorMsg = WebSocketMessage.cursor(
+            documentId, username, user.getNickname(), user.getColor(), position
+        );
         
         broadcastToDocument(documentId, cursorMsg, sessionId);
     }
@@ -169,7 +167,7 @@ public class EditorWebSocketHandler extends TextWebSocketHandler {
                 int cursorPos = documentService.getCursor(documentId, editor);
                 if (cursorPos >= Math.min(from, to) && cursorPos <= Math.max(from, to)) {
                     User conflictUser = userService.getUserByUsername(editor);
-                    ConflictWarning warning = new ConflictWarning(
+                    Map<String, Object> warning = WebSocketMessage.conflict(
                         documentId, username,
                         editor, conflictUser.getNickname(),
                         Math.min(from, to), Math.max(from, to),
@@ -182,14 +180,9 @@ public class EditorWebSocketHandler extends TextWebSocketHandler {
         }
         
         User user = userService.getUserByUsername(username);
-        Map<String, Object> selectionMsg = new HashMap<>();
-        selectionMsg.put("type", "selection");
-        selectionMsg.put("documentId", documentId);
-        selectionMsg.put("username", username);
-        selectionMsg.put("nickname", user.getNickname());
-        selectionMsg.put("color", user.getColor());
-        selectionMsg.put("from", from);
-        selectionMsg.put("to", to);
+        Map<String, Object> selectionMsg = WebSocketMessage.selection(
+            documentId, username, user.getNickname(), user.getColor(), from, to
+        );
         
         broadcastToDocument(documentId, selectionMsg, sessionId);
     }
@@ -210,11 +203,7 @@ public class EditorWebSocketHandler extends TextWebSocketHandler {
         if (receivedVersion != currentVersion) {
             Document doc = documentService.getDocument(documentId);
             session.sendMessage(new TextMessage(objectMapper.writeValueAsString(
-                Map.of(
-                    "type", "syncError",
-                    "currentContent", doc.getContent(),
-                    "correctVersion", documentService.incrementVersion(documentId, username)
-                )
+                WebSocketMessage.syncError(doc.getContent(), documentService.incrementVersion(documentId, username))
             )));
             return;
         }
@@ -232,16 +221,10 @@ public class EditorWebSocketHandler extends TextWebSocketHandler {
         int newVersion = documentService.incrementVersion(documentId, username);
         
         User user = userService.getUserByUsername(username);
-        Map<String, Object> editMsg = new HashMap<>();
-        editMsg.put("type", "edit");
-        editMsg.put("documentId", documentId);
-        editMsg.put("username", username);
-        editMsg.put("nickname", user.getNickname());
-        editMsg.put("color", user.getColor());
-        editMsg.put("from", from);
-        editMsg.put("to", to);
-        editMsg.put("text", text);
-        editMsg.put("version", newVersion);
+        Map<String, Object> editMsg = WebSocketMessage.edit(
+            documentId, username, user.getNickname(), user.getColor(),
+            from, to, text, newVersion
+        );
         
         broadcastToDocument(documentId, editMsg, sessionId);
         
@@ -264,7 +247,7 @@ public class EditorWebSocketHandler extends TextWebSocketHandler {
             }
         }
         
-        UserListMessage userListMsg = new UserListMessage(documentId, userList);
+        Map<String, Object> userListMsg = WebSocketMessage.userList(documentId, userList);
         broadcastToDocument(documentId, userListMsg, null);
     }
     
