@@ -17,7 +17,7 @@
             min-height: 100vh;
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
             padding: 20px;
         }
 
@@ -26,7 +26,7 @@
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
             padding: 40px;
-            max-width: 500px;
+            max-width: 520px;
             width: 100%;
             text-align: center;
         }
@@ -48,9 +48,9 @@
 
         .socket-display {
             position: relative;
-            width: 180px;
-            height: 180px;
-            margin: 0 auto 30px;
+            width: 160px;
+            height: 160px;
+            margin: 0 auto 25px;
             border-radius: 50%;
             background: linear-gradient(145deg, #e0e0e0, #f5f5f5);
             box-shadow: 
@@ -74,7 +74,7 @@
         }
 
         .socket-icon {
-            font-size: 60px;
+            font-size: 55px;
             transition: all 0.3s ease;
         }
 
@@ -90,7 +90,7 @@
         .status-text {
             font-size: 18px;
             font-weight: 600;
-            margin-bottom: 20px;
+            margin-bottom: 18px;
             padding: 10px 20px;
             border-radius: 10px;
             display: inline-block;
@@ -114,10 +114,10 @@
         .response-box {
             background: #f8f9fa;
             border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 30px;
+            padding: 18px;
+            margin-bottom: 20px;
             border: 2px solid #e9ecef;
-            min-height: 80px;
+            min-height: 70px;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -129,11 +129,11 @@
             color: #666;
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }
 
         .response-content {
-            font-size: 20px;
+            font-size: 18px;
             font-weight: 600;
             color: #333;
         }
@@ -155,8 +155,8 @@
 
         .btn {
             flex: 1;
-            padding: 16px 32px;
-            font-size: 16px;
+            padding: 14px 28px;
+            font-size: 15px;
             font-weight: 600;
             border: none;
             border-radius: 12px;
@@ -203,6 +203,7 @@
             font-size: 13px;
             color: #666;
             background: #f8f9fa;
+            margin-bottom: 20px;
         }
 
         .connection-indicator {
@@ -238,6 +239,128 @@
             display: block;
         }
 
+        .report-section {
+            background: #f8f9fa;
+            border-radius: 12px;
+            border: 2px solid #e9ecef;
+            overflow: hidden;
+        }
+
+        .report-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .report-title {
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .report-count {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 10px;
+            border-radius: 10px;
+            font-size: 12px;
+        }
+
+        .report-list {
+            max-height: 280px;
+            overflow-y: auto;
+            padding: 0;
+        }
+
+        .report-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid #e9ecef;
+            background: white;
+            transition: all 0.3s ease;
+        }
+
+        .report-item:last-child {
+            border-bottom: none;
+        }
+
+        .report-item.new {
+            animation: slideIn 0.3s ease-out;
+            background: #f0fdf4;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .report-time {
+            font-size: 11px;
+            color: #9ca3af;
+            margin-bottom: 6px;
+        }
+
+        .report-content {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            font-size: 13px;
+        }
+
+        .report-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+
+        .tag-online {
+            background: rgba(34, 197, 94, 0.1);
+            color: #15803d;
+        }
+
+        .tag-offline {
+            background: rgba(239, 68, 68, 0.1);
+            color: #991b1b;
+        }
+
+        .tag-on {
+            background: rgba(74, 222, 128, 0.15);
+            color: #15803d;
+        }
+
+        .tag-off {
+            background: rgba(107, 114, 128, 0.1);
+            color: #4b5563;
+        }
+
+        .tag-device {
+            background: rgba(99, 102, 241, 0.1);
+            color: #4f46e5;
+        }
+
+        .report-empty {
+            padding: 40px 20px;
+            text-align: center;
+            color: #9ca3af;
+            font-size: 14px;
+        }
+
+        .report-empty-icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+            opacity: 0.5;
+        }
+
         @keyframes pulse {
             0%, 100% {
                 opacity: 1;
@@ -249,6 +372,24 @@
 
         .loading {
             animation: pulse 1.5s infinite;
+        }
+
+        .report-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .report-list::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+
+        .report-list::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+
+        .report-list::-webkit-scrollbar-thumb:hover {
+            background: #a1a1a1;
         }
     </style>
 </head>
@@ -281,12 +422,28 @@
             <div class="connection-indicator" id="connectionIndicator"></div>
             <span id="connectionText">连接中...</span>
         </div>
+
+        <div class="report-section">
+            <div class="report-header">
+                <span class="report-title">📋 设备上报日志</span>
+                <span class="report-count" id="reportCount">0/10 条</span>
+            </div>
+            <div class="report-list" id="reportList">
+                <div class="report-empty">
+                    <div class="report-empty-icon">📡</div>
+                    <div>等待设备上报数据...</div>
+                    <div style="font-size: 12px; margin-top: 5px; color: #6b7280;">上报周期: 30秒</div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
         let ws = null;
         let isConnected = false;
         let currentStatus = '未知';
+        const MAX_REPORTS = 10;
+        let reportHistory = [];
 
         const socketDisplay = document.getElementById('socketDisplay');
         const statusText = document.getElementById('statusText');
@@ -296,6 +453,8 @@
         const errorMessage = document.getElementById('errorMessage');
         const btnOn = document.getElementById('btnOn');
         const btnOff = document.getElementById('btnOff');
+        const reportList = document.getElementById('reportList');
+        const reportCount = document.getElementById('reportCount');
 
         function connectWebSocket() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -343,9 +502,65 @@
                 if (data.response) {
                     updateResponse(data.response);
                 }
+            } else if (data.type === 'report') {
+                addReport(data.data);
             } else if (data.type === 'error') {
                 showError(data.message);
             }
+        }
+
+        function addReport(reportData) {
+            reportHistory.unshift(reportData);
+            
+            if (reportHistory.length > MAX_REPORTS) {
+                reportHistory.pop();
+            }
+
+            renderReportList();
+        }
+
+        function renderReportList() {
+            if (reportHistory.length === 0) {
+                reportList.innerHTML = `
+                    <div class="report-empty">
+                        <div class="report-empty-icon">📡</div>
+                        <div>等待设备上报数据...</div>
+                        <div style="font-size: 12px; margin-top: 5px; color: #6b7280;">上报周期: 30秒</div>
+                    </div>
+                `;
+                reportCount.textContent = '0/10 条';
+                return;
+            }
+
+            reportCount.textContent = `${reportHistory.length}/10 条`;
+
+            let html = '';
+            reportHistory.forEach((report, index) => {
+                const isNew = index === 0;
+                const onlineClass = report.isOnline ? 'tag-online' : 'tag-offline';
+                const onlineText = report.isOnline ? '在线' : '离线';
+                const statusClass = report.socketStatus ? 'tag-on' : 'tag-off';
+                const statusText = report.socketStatus ? '已开启' : '已关闭';
+
+                html += `
+                    <div class="report-item${isNew ? ' new' : ''}">
+                        <div class="report-time">${report.timestamp}</div>
+                        <div class="report-content">
+                            <span class="report-tag tag-device">
+                                <span>📱</span> ${report.deviceId || 'smart-socket-001'}
+                            </span>
+                            <span class="report-tag ${onlineClass}">
+                                <span>${report.isOnline ? '🟢' : '🔴'}</span> ${onlineText}
+                            </span>
+                            <span class="report-tag ${statusClass}">
+                                <span>${report.socketStatus ? '⚡' : '💤'}</span> ${statusText}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            });
+
+            reportList.innerHTML = html;
         }
 
         function updateStatus(status) {

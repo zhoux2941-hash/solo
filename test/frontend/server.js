@@ -11,6 +11,7 @@ const wss = new WebSocket.Server({ server });
 const MQTT_BROKER = 'mqtt://broker.emqx.io:1883';
 const COMMAND_TOPIC = 'smart-socket/command';
 const STATUS_TOPIC = 'smart-socket/status';
+const REPORT_TOPIC = 'smart-socket/device/report';
 const PORT = 3000;
 
 let mqttClient = null;
@@ -32,11 +33,20 @@ function connectMQTT() {
 
   mqttClient.on('connect', () => {
     console.log('已连接到 MQTT Broker:', MQTT_BROKER);
+    
     mqttClient.subscribe(STATUS_TOPIC, { qos: 1 }, (err) => {
       if (err) {
         console.error('订阅状态主题失败:', err);
       } else {
         console.log('已订阅主题:', STATUS_TOPIC);
+      }
+    });
+    
+    mqttClient.subscribe(REPORT_TOPIC, { qos: 1 }, (err) => {
+      if (err) {
+        console.error('订阅设备上报主题失败:', err);
+      } else {
+        console.log('已订阅主题:', REPORT_TOPIC);
       }
     });
   });
@@ -59,6 +69,17 @@ function connectMQTT() {
         response: lastResponse,
         timestamp: new Date().toISOString()
       });
+    } else if (topic === REPORT_TOPIC) {
+      try {
+        const reportData = JSON.parse(msg);
+        broadcastToClients({
+          type: 'report',
+          data: reportData,
+          timestamp: new Date().toISOString()
+        });
+      } catch (err) {
+        console.error('解析上报数据失败:', err);
+      }
     }
   });
 

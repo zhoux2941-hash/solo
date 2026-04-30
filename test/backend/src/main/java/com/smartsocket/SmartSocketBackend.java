@@ -3,7 +3,12 @@ package com.smartsocket;
 import org.eclipse.paho.client.mqttv3.*;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class SmartSocketBackend {
 
@@ -11,15 +16,21 @@ public class SmartSocketBackend {
     private static final String CLIENT_ID_PREFIX = "smart-socket-backend-";
     private static final String COMMAND_TOPIC = "smart-socket/command";
     private static final String STATUS_TOPIC = "smart-socket/status";
+    private static final String REPORT_TOPIC = "smart-socket/device/report";
+    private static final int REPORT_INTERVAL_SECONDS = 30;
 
     private MqttClient mqttClient;
     private boolean socketStatus = false;
+    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     public static void main(String[] args) {
         SmartSocketBackend backend = new SmartSocketBackend();
         backend.connect();
         backend.subscribe();
+        backend.startPeriodicReport();
         System.out.println("智能插座后端服务已启动，等待指令...");
+        System.out.println("设备状态上报周期: " + REPORT_INTERVAL_SECONDS + " 秒");
     }
 
     public void connect() {
@@ -91,6 +102,58 @@ public class SmartSocketBackend {
             System.out.println("已发送响应: " + response);
         } catch (MqttException e) {
             System.err.println("发送响应失败: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private void startPeriodicReport() {
+        System.out.println("启动定时上报任务...");
+        
+        Runnable reportTask = () -> {
+            try {
+                if (mqttClient != null && mqttClient.isConnected()) {
+                    String reportData = createReportData();
+                    publishReport(reportData);
+                } else {
+                    System.out.println("MQTT 未连接，跳过本次上报");
+                }
+            } catch (Exception e) {
+                System.err.println("上报任务执行异常: " + e.getMessage());
+            }
+        };
+
+        scheduler.scheduleAtFixedRate(
+            reportTask,
+            5,
+            REPORT_INTERVAL_SECONDS,
+            TimeUnit.SECONDS
+        );
+    }
+
+    private String createReportData() {
+        boolean isOnline = mqttClient != null && mqttClient.isConnected();
+        String timestamp = LocalDateTime.now().format(formatter);
+        
+        StringBuilder sb = new StringBuilder();
+        sb.append("{");
+        sb.append("\"deviceId\":\"smart-socket-001\",");
+        sb.append("\"isOnline\":").append(isOnline).append(",");
+        sb.append("\"socketStatus\":").append(socketStatus).append(",");
+        sb.append("\"statusText\":\"").append(socketStatus ? "已开启" : "已关闭").append("\",");
+        sb.append("\"timestamp\":\"").append(timestamp).append("\"");
+        sb.append("}");
+        
+        return sb.toString();
+    }
+
+    private void publishReport(String reportData) {
+        try {
+            MqttMessage message = new MqttMessage(reportData.getBytes(StandardCharsets.UTF_8));
+            message.setQos(1);
+            mqttClient.publish(REPORT_TOPIC, message);
+            System.out.println("[" + LocalDateTime.now().format(formatter) + "] 设备状态上报: " + reportData);
+        } catch (MqttException e) {
+            System.err.println("发送上报数据失败: " + e.getMessage());
             e.printStackTrace();
         }
     }
