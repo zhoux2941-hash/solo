@@ -1,0 +1,83 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #1e1e1e;
+  color: #d4d4d4;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #424242;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+input, button {
+  font-family: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  outline: none;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.monaco-container {
+  height: 100%;
+  width: 100%;
+}
+
+.overlay-widget {
+  position: absolute;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.cursor-widget {
+  position: absolute;
+  width: 2px;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.cursor-label {
+  position: absolute;
+  top: -24px;
+  left: 0;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px 4px 4px 0;
+  white-space: nowrap;
+  pointer-events: none;
+  color: white;
+}
+
+.selection-widget {
+  position: absolute;
+  opacity: 0.3;
+  z-index: 40;
+  pointer-events: none;
+}
